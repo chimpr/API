@@ -1,8 +1,11 @@
 const qr = require('qr-image');
 const fs = require('fs');
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const bodyParser = require('body-parser');
+const multer = require('multer');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(bodyParser.json());
@@ -10,8 +13,10 @@ app.use(bodyParser.json());
 // Create directories for storing qr code
 const QR_DIR = './qr_codes';
 const TXT_DIR = './text_files';
+const RESUME_DIR = './resumes';
 fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
+fs.mkdirSync(RESUME_DIR, { recursive: true });
 
 const mongoURI = ''; 
 let client;
@@ -308,6 +313,90 @@ app.post('/api/generate-qr', async (req, res) => {
   // Serve generated files
   app.use('/qr_codes', express.static(QR_DIR));
   app.use('/text_files', express.static(TXT_DIR));
+
+
+// Configure Multer for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'uploads/resumes/'); 
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = `resume-${uuidv4()}${path.extname(file.originalname)}`;
+      cb(null, uniqueName);
+    },
+  });
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // If we need to change file size change the first number here (Current is set to 5mb)
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'application/pdf') {
+        cb(null, true);
+      } else {
+        cb(new Error('Only PDF files are allowed!'), false);
+      }
+    },
+});
+
+// Upload Resume
+app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+      const { userId } = req.body; 
+  
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required.' });
+      }
+  
+      const db = client.db('RecruitmentSystem');
+      const resumesCollection = db.collection('Resumes');
+  
+      const newResume = {
+        userId: new ObjectId(userId), 
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        path: req.file.path,
+      };
+  
+      await resumesCollection.insertOne(newResume);
+  
+      res.status(201).json({
+        message: 'Resume uploaded successfully!',
+        resume: {
+          id: newResume._id,
+          fileName: newResume.fileName,
+          path: newResume.path,
+          originalName: newResume.originalName,
+        },
+      });
+    } catch (error) {
+      console.error('Error uploading resume:', error);
+      res.status(500).json({ error: 'Failed to upload resume.' });
+    }
+});
+
+//Get the resume
+app.get('/api/resumes/:userId', async (req, res) => {
+    try {
+      const db = client.db('RecruitmentSystem');
+      const resume = await db.collection('Resumes').findOne({
+        userId: new ObjectId(req.params.userId),
+      });
+  
+      if (!resume) return res.status(404).json({ error: 'The student has not submitted his resume' });
+  
+      res.status(200).json({
+        id: resume._id,
+        fileName: resume.fileName,
+        originalName: resume.originalName,
+        downloadUrl: `/uploads/resumes/${resume.fileName}`,
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch resume.' });
+    }
+});
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, async () => {
