@@ -18,7 +18,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -32,7 +32,7 @@ async function connectToMongoDB() {
     }
 }
 
-
+//POST signup for recruiter
 app.post('/api/recruiter/signup', async (req, res) => {
     const { LinkedIn, Company, FirstName, LastName, Email, Password } = req.body;
 
@@ -82,6 +82,7 @@ app.post('/api/recruiter/signup', async (req, res) => {
     }
 });
 
+//POST signup for student
 app.post('/api/student/signup', async (req, res) => {
     const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName, Email, Password } = req.body;
 
@@ -135,7 +136,7 @@ app.post('/api/student/signup', async (req, res) => {
     }
 });
 
-
+//POST login for both student and recruiter
 app.post('/api/login', async (req, res, next) => {
     try {
         const { email, password } = req.body;
@@ -177,7 +178,7 @@ app.post('/api/login', async (req, res, next) => {
 });
 
 //POST Create a new job
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs/create', async (req, res) => {
     const { Title, Skills, Type } = req.body;
 
     // if (!Title || !Skills || !Type) {
@@ -214,9 +215,9 @@ app.post('/api/jobs', async (req, res) => {
     }
 });
 
-// PUT update a job
-app.put('/api/jobs/:id', async (req, res) => {
-    const { id } = req.params;
+//PUT update a job
+app.put('/api/jobs/update', async (req, res) => {
+    const { id } = req.body;
     const { Title, Skills, Type } = req.body;
 
     // if (!Title || !Skills || !Type) {
@@ -249,9 +250,14 @@ app.put('/api/jobs/:id', async (req, res) => {
     }
 });
 
-// DELETE delete a job
-app.delete('/api/jobs/:id', async (req, res) => {
-    const { id } = req.params;
+//DELETE delete a job
+app.delete('/api/jobs/delete', async (req, res) => {
+    const { id } = req.body;
+
+    // Validate if the id is a valid ObjectId before proceeding
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid job ID format.' });
+    }
 
     try {
         const db = client.db('RecruitmentSystem');
@@ -262,7 +268,8 @@ app.delete('/api/jobs/:id', async (req, res) => {
         if (result.deletedCount === 0) {
             return res.status(404).json({ error: 'Job not found.' });
         }
-
+        
+        console.log('Job to be deleted:', job);
         res.status(200).json({ message: 'Job deleted successfully.' });
     } catch (error) {
         console.error('Error deleting job:', error);
@@ -270,6 +277,104 @@ app.delete('/api/jobs/:id', async (req, res) => {
     }
 });
 
+
+//POST create a new event
+app.post('/api/events/create', async (req, res) => {
+  const { Name, Date} = req.body;
+
+  try { 
+    //validate the date format
+    const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$/;
+    if (!dateRegex.test(Date)) {
+        return res.status(400).json({ error: 'Invalid date format. Please use the format MM-DD-YYYY.' });
+    }
+
+    const db = client.db('RecruitmentSystem');
+    const jobsCollection = db.collection('Events');
+
+    const newEvent = {
+        Name,
+        Date
+    };
+
+    const result = await jobsCollection.insertOne(newEvent);
+
+    res.status(201).json({
+        _id: result.insertedId,
+        Name,
+        Date: newEvent.Date,
+        Error: ''
+    });
+  } catch (error) {
+      console.error('Error Creating Event:', error);
+      res.status(500).json({ error: 'An error occurred while creating an event.' });
+  }
+});
+
+//PUT update an event
+app.put('/api/events/update', async (req, res) => {
+  const { id } = req.body;
+  const { Name, Date} = req.body;
+
+  try { 
+    //validate the date format
+    const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$/;
+    if (!dateRegex.test(Date)) {
+        return res.status(400).json({ error: 'Invalid date format. Please use the format MM-DD-YYYY.' });
+    }
+
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Events');
+
+    const result = await eventsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { Name, Date} }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Event Not Found!' });
+    }
+
+    res.status(200).json({ message: 'Event Updated Successfully.' });
+
+    res.status(201).json({
+        _id: result.insertedId,
+        Name,
+        Date: result.Date,
+        Error: ''
+    });
+  } catch (error) {
+      console.error('Error Updating Event:', error);
+      res.status(500).json({ error: 'An error occurred while updating an event.' });
+  }
+});
+
+//DELETE delete an event
+app.delete('/api/events/delete', async (req, res) => {
+  const {id} = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid Event ID format.' });
+  }
+
+  try { 
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Events');
+
+    const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+        return res.status(404).json({ error: 'Event Not Found!' });
+    }
+    
+    res.status(200).json({ message: 'Error: " " '});
+  } catch (error) {
+      console.error('Error Creating Event:', error);
+      res.status(500).json({ error: 'An error occurred while creating an event.' });
+  }
+});
+
+//POST generate a qr code based on id
 app.post('/api/generate-qr', async (req, res) => {
     try {
       // Validate and parse user ID
