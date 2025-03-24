@@ -290,14 +290,14 @@ app.post('/api/events/create', async (req, res) => {
     }
 
     const db = client.db('RecruitmentSystem');
-    const jobsCollection = db.collection('Events');
+    const eventsCollection = db.collection('Events');
 
     const newEvent = {
         Name,
         Date
     };
 
-    const result = await jobsCollection.insertOne(newEvent);
+    const result = await eventsCollection.insertOne(newEvent);
 
     res.status(201).json({
         _id: result.insertedId,
