@@ -18,7 +18,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -377,15 +377,17 @@ app.delete('/api/events/delete', async (req, res) => {
 //POST generate a qr code based on id
 app.post('/api/generate-qr', async (req, res) => {
     try {
-      // Validate and parse user ID
-      const userId = Number(req.body.userId);
-      if (isNaN(userId)) {
-        return res.status(400).json({ error: 'Valid numeric userId required' });
-      }
+      const objectId = req.body.objectId;
+
+    if (typeof objectId !== 'string' || !ObjectId.isValid(objectId)) {
+      return res.status(400).json({ 
+        error: 'Valid MongoDB ObjectID required (24-character hex string)' 
+      });
+    }
   
-      const qrCodeData = userId.toString();
-      const qrFilename = `${QR_DIR}/qr_${userId}.png`;
-      const txtFilename = `${TXT_DIR}/user_${userId}.txt`;
+      const qrCodeData = objectId;
+      const qrFilename = `${QR_DIR}/qr_${objectId}.png`;
+      const txtFilename = `${TXT_DIR}/user_${objectId}.txt`;
   
       // Generate QR code
       const qrStream = qr.image(qrCodeData, { type: 'png' });
@@ -399,14 +401,14 @@ app.post('/api/generate-qr', async (req, res) => {
         writeStream.on('error', reject);
       });
   
-      // Create text file with user ID
+      // Create text file with object ID
       await fs.promises.writeFile(txtFilename, qrCodeData);
   
       res.json({
         success: true,
         message: 'QR code generated successfully',
-        qrImage: `/qr_codes/qr_${userId}.png`,
-        textFile: `/text_files/user_${userId}.txt`
+        qrImage: `/qr_codes/qr_${objectId}.png`,
+        textFile: `/text_files/user_${objectId}.txt`
       });
   
     } catch (error) {
