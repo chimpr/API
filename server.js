@@ -37,7 +37,7 @@ app.post('/api/recruiter/signup', async (req, res) => {
     const { LinkedIn, Company, FirstName, LastName, Email, Password } = req.body;
 
     if (!LinkedIn || !Company || !FirstName || !LastName || !Email || !Password ) {
-        return res.status(400).json({ error: 'All fields (LinkedIn, Company, FirstName, LastName, Email, and Password ) are required.' });
+        return res.status(403).json({ error: 'All fields (LinkedIn, Company, FirstName, LastName, Email, and Password ) are required.' }); //need to psuh
     }
 
     try {
@@ -87,7 +87,7 @@ app.post('/api/student/signup', async (req, res) => {
     const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName, Email, Password } = req.body;
 
     if (!School || !Grad_Semester || !Grad_Year || !FirstName || !LastName || !Email || !Password ) {
-        return res.status(400).json({ error: 'All fields (School, Grad_Semester, Grad_Year, FirstName, LastName, Email, and Password ) are required.' });
+        return res.status(403).json({ error: 'All fields (School, Grad_Semester, Grad_Year, FirstName, LastName, Email, and Password ) are required.' }); //need to psuh
     }
 
     try {
@@ -181,16 +181,6 @@ app.post('/api/login', async (req, res, next) => {
 app.post('/api/jobs/create', async (req, res) => {
     const { Title, Skills, Type } = req.body;
 
-    // if (!Title || !Skills || !Type) {
-    //     return res.status(400).json({ error: 'All fields (Title, Skills, Type) are required.' });
-    // }
-    // if (!Array.isArray(Skills)) {
-    //     return res.status(400).json({ error: 'Skills must be an array.' });
-    // }
-    // if (!['Internship', 'Full Time'].includes(Type)) {
-    //     return res.status(400).json({ error: 'Type must be either "Internship" or "Full Time".' });
-    // }
-
     try {
         const db = client.db('RecruitmentSystem');
         const jobsCollection = db.collection('Jobs');
@@ -207,7 +197,8 @@ app.post('/api/jobs/create', async (req, res) => {
             _id: result.insertedId,
             Title,
             Skills,
-            Type
+            Type,
+            Error: ''
         });
     } catch (error) {
         console.error('Error creating job:', error);
@@ -219,16 +210,6 @@ app.post('/api/jobs/create', async (req, res) => {
 app.put('/api/jobs/update', async (req, res) => {
     const { id } = req.body;
     const { Title, Skills, Type } = req.body;
-
-    // if (!Title || !Skills || !Type) {
-    //     return res.status(400).json({ error: 'All fields (Title, Skills, Type) are required.' });
-    // }
-    // if (!Array.isArray(Skills)) {
-    //     return res.status(400).json({ error: 'Skills must be an array.' });
-    // }
-    // if (!['Internship', 'Full Time'].includes(Type)) {
-    //     return res.status(400).json({ error: 'Type must be either "Internship" or "Full Time".' });
-    // }
 
     try {
         const db = client.db('RecruitmentSystem');
@@ -334,8 +315,6 @@ app.put('/api/events/update', async (req, res) => {
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'Event Not Found!' });
     }
-
-    res.status(200).json({ message: 'Event Updated Successfully.' });
 
     res.status(201).json({
         _id: result.insertedId,
