@@ -8,6 +8,8 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
+const cors = require('cors');
+app.use(cors());
 app.use(bodyParser.json());
 
 // Create directories for storing qr code
@@ -160,7 +162,7 @@ app.post('/api/login', async (req, res, next) => {
         }
 
         if (!user) {
-            return res.status(401).json({ error: 'Invalid Email or Password' });
+            return res.status(401).json({ Error: 'Invalid Email or Password' });
         }
 
         res.status(200).json({
