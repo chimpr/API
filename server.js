@@ -7,6 +7,11 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+//json token & hash password
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs'); 
+const jwtSecret = 'G25COP4331';  //should go in .env tho!
+
 const app = express();
 app.use(bodyParser.json());
 
@@ -32,6 +37,86 @@ async function connectToMongoDB() {
     }
 }
 
+//POST login for both student and recruiter
+app.post('/api/login', async (req, res, next) => {
+  try {
+      const { email, password } = req.body;
+      const db = client.db('RecruitmentSystem');
+
+      //search from both collections 
+      const [studentResult, recruiterResult] = await Promise.all([
+          db.collection('Students').findOne({ Email: email}),
+          db.collection('Recruiters').findOne({ Email: email})
+      ]);
+
+      let user = null;
+      let role = '';
+
+      if (studentResult) {
+          user = studentResult;
+          role = 'Student';
+      } else if (recruiterResult) {
+          user = recruiterResult;
+          role = 'Recruiter';
+      }
+
+      if (!user) {
+          return res.status(401).json({ error: 'Invalid Email or Password' });
+      }
+
+      //compare based on hashed password
+      const isPasswordCorrect = await bcrypt.compare(password, user.Password);
+
+      //not the right password!
+      if (!isPasswordCorrect) {
+        return res.status(403).json({ error: 'Invalid Password' });
+      }
+
+      //jwt token
+      /*const token = jwt.sign(
+        { id: user._id, email: user.Email, firstName: user.FirstName, lastName: user.LastName },
+        jwtSecret,  // Use the hardcoded JWT secret
+        { expiresIn: '1h' }      // Token expires in 1 hour
+      );*/
+
+      res.status(200).json({
+          ID: user._id,
+          FirstName: user.FirstName,
+          LastName: user.LastName,
+          Role: role,
+          token, //jwt token that should be stored within frontend
+          Error: ''
+      });
+
+  } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+//middleware to verify jwt token
+const verifyToken = (req, res, next) => {
+  const token = req.header('Authorization')?.split(' ')[1];  
+
+  if (!token) {
+    return res.status(403).json({ error: 'Token is required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret);  //decode with jwtSecret
+    req.user = decoded; 
+    next(); 
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return res.status(403).json({ error: 'Invalid or expired token' });  // Invalid token or expired
+  }
+};
+
+//GET whenever json token is needed, run this!
+app.get('/api/protected', verifyToken, (req, res) => {
+  res.status(200).json({ message: 'This is a protected route', user: req.user });  // Send back user info
+});
+
 //POST signup for recruiter
 app.post('/api/recruiter/signup', async (req, res) => {
     const { LinkedIn, Company, FirstName, LastName, Email, Password } = req.body;
@@ -53,6 +138,9 @@ app.post('/api/recruiter/signup', async (req, res) => {
             return res.status(400).json({ error: 'Email Already Taken.' });
         }
 
+        //hash password
+        const hashedPassword = await bcrypt.hash(Password, 10); // 10 is the salt rounds
+
         const newRecruiter = {
             LinkedIn,
             Company,
@@ -60,7 +148,7 @@ app.post('/api/recruiter/signup', async (req, res) => {
             FirstName,
             LastName,
             Email,
-            Password
+            Password: hashedPassword
         };
 
         const result = await recruitersCollection.insertOne(newRecruiter);
@@ -73,13 +161,38 @@ app.post('/api/recruiter/signup', async (req, res) => {
             FirstName,
             LastName,
             Email,
-            Password,
             Error: '' //good practice to return empty string!
         });
     } catch (error) {
         console.error('Error during signup:', error);
         res.status(500).json({ error: 'An error occurred while signing up.' });
     }
+});
+
+//GET recruiter details by ID
+app.get('/api/recruiter/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const recruitersCollection = db.collection('Recruiters');
+
+    //retrieve all fields except password
+    const recruiter = await recruitersCollection.findOne(
+      { _id: new ObjectId(id) },
+      { projection: { Password: 0 } }
+    );
+
+    if (!recruiter) {
+      return res.status(404).json({ error: 'Recruiter Not Found' });
+    }
+
+    res.status(200).json(recruiter);
+
+  } catch (error) {
+    console.error('Error retrieving recruiter:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving the recruiter.' });
+  }
 });
 
 //POST signup for student
@@ -103,6 +216,9 @@ app.post('/api/student/signup', async (req, res) => {
             return res.status(400).json({ error: 'Email Already Taken.' });
         }
 
+        //hash password
+        const hashedPassword = await bcrypt.hash(Password, 10); // 10 is the salt rounds
+        
         const newStudent = {
             School,
             Grad_Semester,
@@ -112,7 +228,7 @@ app.post('/api/student/signup', async (req, res) => {
             FirstName,
             LastName,
             Email,
-            Password
+            Password: hashedPassword
         };
 
         const result = await studentsCollection.insertOne(newStudent);
@@ -127,7 +243,6 @@ app.post('/api/student/signup', async (req, res) => {
             FirstName,
             LastName,
             Email,
-            Password,
             Error: ''
         });
     } catch (error) {
@@ -136,46 +251,32 @@ app.post('/api/student/signup', async (req, res) => {
     }
 });
 
-//POST login for both student and recruiter
-app.post('/api/login', async (req, res, next) => {
-    try {
-        const { email, password } = req.body;
-        const db = client.db('RecruitmentSystem');
+//GET student details by ID
+app.get('/api/student/:id', async (req, res) => {
+  const { id } = req.params;
 
-        //search from both collections 
-        const [studentResult, recruiterResult] = await Promise.all([
-            db.collection('Students').findOne({ Email: email, Password: password }),
-            db.collection('Recruiters').findOne({ Email: email, Password: password })
-        ]);
+  try {
+    const db = client.db('RecruitmentSystem');
+    const studentsCollection = db.collection('Students');
 
-        let user = null;
-        let role = '';
+    //retrieve all fields except password
+    const student = await studentsCollection.findOne(
+      { _id: new ObjectId(id) },
+      { projection: { Password: 0 } }
+    );
 
-        if (studentResult) {
-            user = studentResult;
-            role = 'Student';
-        } else if (recruiterResult) {
-            user = recruiterResult;
-            role = 'Recruiter';
-        }
-
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid Email or Password' });
-        }
-
-        res.status(200).json({
-            ID: user._id,
-            FirstName: user.FirstName,
-            LastName: user.LastName,
-            Role: role,
-            Error: ''
-        });
-
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+    if (!student) {
+      return res.status(404).json({ error: 'Student Not Found' });
     }
+
+    res.status(200).json(student);
+
+  } catch (error) {
+    console.error('Error retrieving student:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving the student.' });
+  }
 });
+
 
 //POST Create a new job
 app.post('/api/jobs/create', async (req, res) => {
@@ -258,6 +359,27 @@ app.delete('/api/jobs/delete', async (req, res) => {
     }
 });
 
+//GET job details by ID
+app.get('/api/jobs/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const jobsCollection = db.collection('Jobs');
+
+    const job = await jobsCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job Not Found' });
+    }
+
+    res.status(200).json(job);
+
+  } catch (error) {
+    console.error('Error retrieving job:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving the job.' });
+  }
+});
 
 //POST create a new event
 app.post('/api/events/create', async (req, res) => {
@@ -350,6 +472,58 @@ app.delete('/api/events/delete', async (req, res) => {
   } catch (error) {
       console.error('Error Creating Event:', error);
       res.status(500).json({ error: 'An error occurred while creating an event.' });
+  }
+});
+
+//GET event details by ID
+app.get('/api/events/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Events');
+
+    const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.status(200).json(event);
+
+  } catch (error) {
+    console.error('Error retrieving event:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving the event.' });
+  }
+});
+
+//POST create scans
+app.post('/api/scans', async (req, res) => {
+  const { Student_ID, Recruiter_ID, Score } = req.body;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const scansCollection = db.collection('Scans');
+
+    const newScan = {
+      Student_ID, 
+      Recruiter_ID, 
+      Score
+    };
+
+    const result = await scansCollection.insertOne(newScan);
+
+    res.status(201).json({
+        _id: result.insertedId,
+        Student_ID,
+        Recruiter_ID,
+        Score,
+        Error: ''
+    });
+
+  } catch (error) {
+      console.error('Error creating Scan:', error);
+      res.status(500).json({ error: 'An error occurred while creating the scan.' });
   }
 });
 
