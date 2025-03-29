@@ -23,7 +23,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -333,8 +333,8 @@ app.put('/api/jobs/update', async (req, res) => {
 });
 
 //DELETE delete a job
-app.delete('/api/jobs/delete', async (req, res) => {
-    const { id } = req.body;
+app.delete('/api/jobs/delete/:id', async (req, res) => {
+    const { id } = req.params;
 
     // Validate if the id is a valid ObjectId before proceeding
     if (!ObjectId.isValid(id)) {
@@ -344,6 +344,12 @@ app.delete('/api/jobs/delete', async (req, res) => {
     try {
         const db = client.db('RecruitmentSystem');
         const jobsCollection = db.collection('Jobs');
+
+        const job = await jobsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found.' });
+        }
 
         const result = await jobsCollection.deleteOne({ _id: new ObjectId(id) });
 
@@ -451,8 +457,8 @@ app.put('/api/events/update', async (req, res) => {
 });
 
 //DELETE delete an event
-app.delete('/api/events/delete', async (req, res) => {
-  const {id} = req.body;
+app.delete('/api/events/delete/:id', async (req, res) => {
+  const {id} = req.params;
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).json({ error: 'Invalid Event ID format.' });
@@ -462,13 +468,20 @@ app.delete('/api/events/delete', async (req, res) => {
     const db = client.db('RecruitmentSystem');
     const eventsCollection = db.collection('Events');
 
+    const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!event) {
+        return res.status(404).json({ error: 'Event not found.' });
+    }
+
     const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
 
     if (result.deletedCount === 0) {
         return res.status(404).json({ error: 'Event Not Found!' });
     }
     
-    res.status(200).json({ message: 'Error: " " '});
+    console.log('Event to be deleted:', event);
+    res.status(200).json({ message: 'Event deleted successfully.' });
   } catch (error) {
       console.error('Error Creating Event:', error);
       res.status(500).json({ error: 'An error occurred while creating an event.' });
