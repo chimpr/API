@@ -23,7 +23,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -43,10 +43,12 @@ app.post('/api/login', async (req, res, next) => {
       const { email, password } = req.body;
       const db = client.db('RecruitmentSystem');
 
+      const lowerCaseEmail = email.toLowerCase();
+
       //search from both collections 
       const [studentResult, recruiterResult] = await Promise.all([
-          db.collection('Students').findOne({ Email: email}),
-          db.collection('Recruiters').findOne({ Email: email})
+          db.collection('Students').findOne({ Email: lowerCaseEmail}),
+          db.collection('Recruiters').findOne({ Email: lowerCaseEmail})
       ]);
 
       let user = null;
@@ -84,7 +86,7 @@ app.post('/api/login', async (req, res, next) => {
           FirstName: user.FirstName,
           LastName: user.LastName,
           Role: role,
-          token, //jwt token that should be stored within frontend
+          //token, //jwt token that should be stored within frontend
           Error: ''
       });
 
@@ -131,8 +133,11 @@ app.post('/api/recruiter/signup', async (req, res) => {
 
         //check email exists in all database
         const studentsCollection = db.collection('Students');
-        const existingRecruiter = await recruitersCollection.findOne({ Email });
-        const existingStudent = await studentsCollection.findOne({ Email });
+
+        // Convert email to lowercase
+        const lowerCaseEmail = Email.toLowerCase();
+        const existingRecruiter = await recruitersCollection.findOne({ Email: lowerCaseEmail});
+        const existingStudent = await studentsCollection.findOne({ Email: lowerCaseEmail });
 
         if (existingRecruiter || existingStudent) {
             return res.status(400).json({ error: 'Email Already Taken.' });
@@ -147,7 +152,7 @@ app.post('/api/recruiter/signup', async (req, res) => {
             Events: [], 
             FirstName,
             LastName,
-            Email,
+            Email: lowerCaseEmail,
             Password: hashedPassword
         };
 
@@ -160,13 +165,38 @@ app.post('/api/recruiter/signup', async (req, res) => {
             Events: [],
             FirstName,
             LastName,
-            Email,
+            Email: lowerCaseEmail,
             Error: '' //good practice to return empty string!
         });
     } catch (error) {
         console.error('Error during signup:', error);
         res.status(500).json({ error: 'An error occurred while signing up.' });
     }
+});
+
+//PUT update a recruiter
+app.put('/api/recruiter/update', async (req, res) => {
+  const { id } = req.body;
+  const { LinkedIn, Company, FirstName, LastName} = req.body;
+
+  try {
+      const db = client.db('RecruitmentSystem');
+      const recruiterCollection = db.collection('Recruiters');
+
+      const result = await recruiterCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set:  { LinkedIn, Company, FirstName, LastName}}
+      );
+
+      if (result.matchedCount === 0) {
+          return res.status(404).json({ error: 'Recruiter not found.' });
+      }
+
+      res.status(200).json({ message: 'Recruiter updated successfully.' });
+  } catch (error) {
+      console.error('Error updating Recruiter:', error);
+      res.status(500).json({ error: 'An error occurred while updating the Recruiter.' });
+  }
 });
 
 //GET recruiter details by ID
@@ -209,8 +239,10 @@ app.post('/api/student/signup', async (req, res) => {
 
         //check email exists in all database
         const recruitersCollection = db.collection('Recruiters');
-        const existingRecruiter = await recruitersCollection.findOne({ Email });
-        const existingStudent = await studentsCollection.findOne({ Email });
+
+        const lowerCaseEmail = Email.toLowerCase();
+        const existingRecruiter = await recruitersCollection.findOne({ Email: lowerCaseEmail });
+        const existingStudent = await studentsCollection.findOne({ Email: lowerCaseEmail });
 
         if (existingRecruiter || existingStudent) {
             return res.status(400).json({ error: 'Email Already Taken.' });
@@ -227,7 +259,7 @@ app.post('/api/student/signup', async (req, res) => {
             Job_Performance: [],
             FirstName,
             LastName,
-            Email,
+            Email: lowerCaseEmail,
             Password: hashedPassword
         };
 
@@ -242,13 +274,39 @@ app.post('/api/student/signup', async (req, res) => {
             Job_Performance: [],
             FirstName,
             LastName,
-            Email,
+            Email: lowerCaseEmail,
             Error: ''
         });
     } catch (error) {
         console.error('Error during signup:', error);
         res.status(500).json({ error: 'An error occurred while signing up.' });
     }
+});
+
+
+//PUT update a student
+app.put('/api/student/update', async (req, res) => {
+  const { id } = req.body;
+  const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName} = req.body;
+
+  try {
+      const db = client.db('RecruitmentSystem');
+      const studentCollection = db.collection('Students');
+
+      const result = await studentCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName} }
+      );
+
+      if (result.matchedCount === 0) {
+          return res.status(404).json({ error: 'Student not found.' });
+      }
+
+      res.status(200).json({ message: 'Student updated successfully.' });
+  } catch (error) {
+      console.error('Error updating Student:', error);
+      res.status(500).json({ error: 'An error occurred while updating the Student.' });
+  }
 });
 
 //GET student details by ID
@@ -457,6 +515,7 @@ app.put('/api/events/update', async (req, res) => {
 });
 
 //DELETE delete an event
+// should see what recruiters went to event and delete it from their arrays aas well!
 app.delete('/api/events/delete/:id', async (req, res) => {
   const {id} = req.params;
 
@@ -539,6 +598,59 @@ app.post('/api/scans', async (req, res) => {
       res.status(500).json({ error: 'An error occurred while creating the scan.' });
   }
 });
+
+//PUT create avg of scans for student
+app.post('/api/student/job-performance', async (req, res) => {
+  const { Student_ID} = req.body;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const scansCollection = db.collection('Scans');
+    const studentsCollection = db.collection('Students');
+
+    //retrieve all scans for student that matches student_id
+    const studentScans = await scansCollection.find({ Student_ID }).toArray();
+
+    let avgScore = 0;
+    if (studentScans.length > 0) {
+        const totalScore = studentScans.reduce((sum, scan) => sum + scan.Score, 0);
+        avgScore = totalScore / studentScans.length;
+    }
+
+    let performanceLabel = '';
+    if (avgScore < 30) {
+        performanceLabel = 'poor';
+    } else if (avgScore < 45) {
+        performanceLabel = 'not good';
+    } else if (avgScore < 55) {
+        performanceLabel = 'not great';
+    } else if (avgScore < 65) {
+        performanceLabel = 'needs practice';
+    } else if (avgScore < 75) {
+        performanceLabel = 'good';
+    } else if (avgScore < 85) {
+        performanceLabel = 'great';
+    } else {
+        performanceLabel = 'amazing';
+    }
+
+    // Update student's job performance
+    await studentsCollection.updateOne(
+        { Student_ID },
+        { $set: { Job_Performance: { score: avgScore, rating: performanceLabel } } }
+    );
+
+    res.status(201).json({
+        Error: ' ',
+        Student_ID,
+        Job_Performance: { score: avgScore, rating: performanceLabel },
+    });
+  } catch (error) {
+      console.error('Error Updating Student Job Performance:', error);
+      res.status(500).json({ error: 'An error occurred while updating Student Job Performance.' });
+  }
+});
+
 
 //POST generate a qr code based on id
 app.post('/api/generate-qr', async (req, res) => {
