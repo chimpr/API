@@ -336,7 +336,11 @@ app.get('/api/student/:id', async (req, res) => {
 
 //POST Create a new job
 app.post('/api/jobs/create', async (req, res) => {
-    const { Title, Skills, Type } = req.body;
+    const { Title, Skills, Type, Recruiter_ID } = req.body;
+
+    if (!ObjectId.isValid(Recruiter_ID)) {
+      return res.status(404).json({ error: 'Invalid Recruiter_ID format.' });
+    }
 
     try {
         const db = client.db('RecruitmentSystem');
@@ -345,7 +349,8 @@ app.post('/api/jobs/create', async (req, res) => {
         const newJob = {
             Title,
             Skills,
-            Type
+            Type, 
+            Recruiter_ID
         };
 
         const result = await jobsCollection.insertOne(newJob);
@@ -355,6 +360,7 @@ app.post('/api/jobs/create', async (req, res) => {
             Title,
             Skills,
             Type,
+            Recruiter_ID,
             Error: ''
         });
     } catch (error) {
@@ -445,8 +451,12 @@ app.get('/api/jobs/:id', async (req, res) => {
 
 //POST create a new event
 app.post('/api/events/create', async (req, res) => {
-  const { Name, Date} = req.body;
+  const { Name, Date, Recruiter_ID} = req.body;
 
+  if (!ObjectId.isValid(Recruiter_ID)) {
+    return res.status(404).json({ error: 'Invalid Recruiter_ID format.' });
+  
+  }
   try { 
     //validate the date format
     const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$/;
@@ -459,7 +469,8 @@ app.post('/api/events/create', async (req, res) => {
 
     const newEvent = {
         Name,
-        Date
+        Date, 
+        Recruiter_ID
     };
 
     const result = await eventsCollection.insertOne(newEvent);
@@ -468,6 +479,7 @@ app.post('/api/events/create', async (req, res) => {
         _id: result.insertedId,
         Name,
         Date: newEvent.Date,
+        Recruiter_ID,
         Error: ''
     });
   } catch (error) {
@@ -638,6 +650,28 @@ app.post('/api/student/job-performance', async (req, res) => {
   } catch (error) {
       console.error('Error Updating Student Job Performance:', error);
       res.status(500).json({ error: 'An error occurred while updating Student Job Performance.' });
+  }
+});
+
+//GET all events that match the recruiter id
+app.get('/api/event/list/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Events');
+
+    //retrieve all events that match the recruiter id
+    const events = await eventsCollection.find({ Recruiter_ID: id }).toArray();
+
+    res.status(200).json({
+        Error: ' ',
+        Recruiter_ID: id,
+        events
+    });
+  } catch (error) {
+      console.error('Error getting events based on recruiter id :', error);
+      res.status(500).json({ error: 'An error occurred while getting events based on recruiter id.' });
   }
 });
 
