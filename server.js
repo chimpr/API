@@ -149,7 +149,6 @@ app.post('/api/recruiter/signup', async (req, res) => {
         const newRecruiter = {
             LinkedIn,
             Company,
-            Events: [], 
             FirstName,
             LastName,
             Email: lowerCaseEmail,
@@ -162,7 +161,6 @@ app.post('/api/recruiter/signup', async (req, res) => {
             ID: result.insertedId,
             LinkedIn,
             Company,
-            Events: [],
             FirstName,
             LastName,
             Email: lowerCaseEmail,
@@ -618,18 +616,10 @@ app.post('/api/student/job-performance', async (req, res) => {
     }
 
     let performanceLabel = '';
-    if (avgScore < 30) {
-        performanceLabel = 'poor';
-    } else if (avgScore < 45) {
+    if (avgScore <=50) {
         performanceLabel = 'not good';
-    } else if (avgScore < 55) {
-        performanceLabel = 'not great';
-    } else if (avgScore < 65) {
-        performanceLabel = 'needs practice';
-    } else if (avgScore < 75) {
-        performanceLabel = 'good';
-    } else if (avgScore < 85) {
-        performanceLabel = 'great';
+    } else if (avgScore <=75) {
+        performanceLabel = 'average';
     } else {
         performanceLabel = 'amazing';
     }
