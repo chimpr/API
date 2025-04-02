@@ -12,6 +12,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); 
 const jwtSecret = 'G25COP4331';  //should go in .env tho!
 
+//pdf
+const pdfParse = require("pdf-parse");
+
 const app = express();
 app.use(bodyParser.json());
 
@@ -281,7 +284,6 @@ app.post('/api/student/signup', async (req, res) => {
     }
 });
 
-
 //PUT update a student
 app.put('/api/student/update', async (req, res) => {
   const { id } = req.body;
@@ -332,7 +334,6 @@ app.get('/api/student/:id', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while retrieving the student.' });
   }
 });
-
 
 //POST Create a new job
 app.post('/api/jobs/create', async (req, res) => {
@@ -525,7 +526,6 @@ app.put('/api/events/update', async (req, res) => {
 });
 
 //DELETE delete an event
-// should see what recruiters went to event and delete it from their arrays aas well!
 app.delete('/api/events/delete/:id', async (req, res) => {
   const {id} = req.params;
 
@@ -579,6 +579,29 @@ app.get('/api/events/:id', async (req, res) => {
   }
 });
 
+//GET all events that match the recruiter id
+//needs to be tested
+app.get('/api/event/list/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Events');
+
+    //retrieve all events that match the recruiter id
+    const events = await eventsCollection.find({ Recruiter_ID: id }).toArray();
+
+    res.status(200).json({
+        Error: ' ',
+        Recruiter_ID: id,
+        events
+    });
+  } catch (error) {
+      console.error('Error getting events based on recruiter id :', error);
+      res.status(500).json({ error: 'An error occurred while getting events based on recruiter id.' });
+  }
+});
+
 //POST create scans
 app.post('/api/scans', async (req, res) => {
   const { Student_ID, Recruiter_ID, Score } = req.body;
@@ -609,72 +632,137 @@ app.post('/api/scans', async (req, res) => {
   }
 });
 
-//PUT create avg of scans for student
-app.post('/api/student/job-performance', async (req, res) => {
-  const { Student_ID} = req.body;
+//POST total scores for jobs and job performance of student
+//needs to be tested
+/*
+app.post("/api/match-resume/", async (req, res) => {
+  const{Recruiter_ID, Student_ID, Score} = req.body
 
   try {
-    const db = client.db('RecruitmentSystem');
-    const scansCollection = db.collection('Scans');
-    const studentsCollection = db.collection('Students');
+      const db = client.db("RecruitmentSystem");
+      const jobsCollection = db.collection("Jobs");
+      const studentsCollection = db.collection("Students");
+      const resumesCollection = db.collection("Resumes");
+  
+      if (!resume) return res.status(404).json({ error: 'The student has not submitted his resume' });
+  
+      //get student's resume
+      const resume = await resumesCollection.findOne({ userId: Student_ID});
+      const filePath = resume.Path;
+      console.log(filePath);
 
-    //retrieve all scans for student that matches student_id
-    const studentScans = await scansCollection.find({ Student_ID }).toArray();
+      //get all jobs pertaining to recruiter id
+      const jobs = await jobsCollection.find({ Recruiter_ID: Recruiter_ID }).toArray();
+      const totalJobs = jobs.length;
+      console.log(totalJobs);
 
-    let avgScore = 0;
-    if (studentScans.length > 0) {
-        const totalScore = studentScans.reduce((sum, scan) => sum + scan.Score, 0);
-        avgScore = totalScore / studentScans.length;
-    }
+      //variables & left
+      const left = (0.25) * ((Score/5) * 100);
+      console.log(left);
 
-    let performanceLabel = '';
-    if (avgScore <=50) {
-        performanceLabel = 'not good';
-    } else if (avgScore <=75) {
-        performanceLabel = 'average';
-    } else {
-        performanceLabel = 'amazing';
-    }
+      const total = 0;
 
-    // Update student's job performance
-    await studentsCollection.updateOne(
-        { Student_ID },
-        { $set: { Job_Performance: { score: avgScore, rating: performanceLabel } } }
-    );
+      for (const job of jobs) {
+          const jobSkills = job.skills || []; 
+          const amountSkills = jobSkills.length;
+          const matchedSkills = 0;
 
-    res.status(201).json({
+          const matchCount = await checkSkillsInPDF(fileName, jobSkills); //helper function to get matchedskills
+
+          if(matchCount == null)
+          {
+            return res.status(404).json({ error: "Error: Unable to Read PDF" });
+          }
+
+          const right = (0.75) * (matchedSkills/amountSkills);
+
+          const totalJobScore = left + right;
+
+          //add new candidate in job
+          const result = await jobsCollection.updateOne(
+            { _id: new ObjectId(job._id) },
+            { $push: { Top_Candidates: { Student_ID: Student_ID, Score:totalJobScore } } } 
+          );
+        
+          total += totalJobScore;
+      }
+      total = total / totalJobs;
+
+      const student= await studentsCollection.findOne({ Student_ID: Student_ID});
+      if (!student) {
+        return res.status(404).json({ error: "Student not found." });
+      }
+    
+      const jobPerformance = student.Job_Performance;
+      
+      if (!jobPerformance || jobPerformance.length < 2) {
+          return res.status(404).json({ error: "Job performance data is incomplete for this student." });
+      }
+      
+      const before_score = jobPerformance[0];
+
+      const after_score = ( jobPerformance[0] + total ) / 2
+
+      let performanceLabel = '';
+      if (after_score <=50) {
+          performanceLabel = 'not good';
+      } else if (after_score <=75) {
+          performanceLabel = 'average';
+      } else {
+          performanceLabel = 'amazing';
+      }
+
+      // Update student's job performance
+      await studentsCollection.updateOne(
+          { Student_ID },
+          { $set: { Job_Performance: [after_score, performanceLabel] } }
+      );
+
+      res.status(200).json({
         Error: ' ',
-        Student_ID,
-        Job_Performance: { score: avgScore, rating: performanceLabel },
-    });
+        Before_Job_Performance: before_score,
+        After_Job_Performance: after_score
+      });
+
   } catch (error) {
-      console.error('Error Updating Student Job Performance:', error);
-      res.status(500).json({ error: 'An error occurred while updating Student Job Performance.' });
+      console.error("Error processing score calculation of job performance:", error);
+      res.status(500).json({ error: "An error occurred while matching skills with resume." });
   }
 });
+*/
 
-//GET all events that match the recruiter id
-app.get('/api/event/list/:id', async (req, res) => {
-  const { id } = req.params;
-
+//tested with match-resume
+async function checkSkillsInPDF(filePath, jobSkills) {
   try {
-    const db = client.db('RecruitmentSystem');
-    const eventsCollection = db.collection('Events');
+    
+      if (!fs.existsSync(filePath)) throw new Error("File not found!");
 
-    //retrieve all events that match the recruiter id
-    const events = await eventsCollection.find({ Recruiter_ID: id }).toArray();
+      //read pdf file
+      const pdfBuffer = fs.readFileSync(filePath);
+      const pdfData = await pdfParse(pdfBuffer);
+      const pdfText = pdfData.text.toLowerCase(); //convert text to lowercase for case-insensitive matching
 
-    res.status(200).json({
-        Error: ' ',
-        Recruiter_ID: id,
-        events
-    });
+      let matchCount = 0;
+      const foundSkills = new Set(); //prevent duplicate counting
+
+      //loop through each skill in jobSkills array
+      jobSkills.forEach(skill => {
+          const regex = new RegExp(`\\b${skill.toLowerCase()}\\b`, "g");
+          if (regex.test(pdfText)) {
+              foundSkills.add(skill.toLowerCase()); //add skill to set
+          }
+      });
+
+      //count of unique matched skills 
+      matchCount = foundSkills.size;
+
+      return matchCount;
+
   } catch (error) {
-      console.error('Error getting events based on recruiter id :', error);
-      res.status(500).json({ error: 'An error occurred while getting events based on recruiter id.' });
+      console.error("Error reading PDF:", error);
+      return null; 
   }
-});
-
+}
 
 //POST generate a qr code based on id
 app.post('/api/generate-qr', async (req, res) => {
@@ -727,7 +815,7 @@ app.post('/api/generate-qr', async (req, res) => {
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, 'uploads/resumes/'); 
+      cb(null, './resumes/'); 
     },
     filename: (req, file, cb) => {
       const uniqueName = `resume-${uuidv4()}${path.extname(file.originalname)}`;
@@ -747,7 +835,7 @@ const upload = multer({
     },
 });
 
-// Upload Resume
+//POST upload Resume
 app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
     try {
       if (!req.file) {
@@ -763,10 +851,10 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
       const resumesCollection = db.collection('Resumes');
   
       const newResume = {
-        userId: new ObjectId(userId), 
-        fileName: req.file.filename,
-        originalName: req.file.originalname,
-        path: req.file.path,
+        userId: userId, 
+        FileName: req.file.filename,
+        OriginalName: req.file.originalname,
+        Path: req.file.path,
       };
   
       await resumesCollection.insertOne(newResume);
@@ -775,9 +863,9 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
         message: 'Resume uploaded successfully!',
         resume: {
           id: newResume._id,
-          fileName: newResume.fileName,
-          path: newResume.path,
-          originalName: newResume.originalName,
+          FileName: newResume.FileName,
+          Path: newResume.Path,
+          OriginalName: newResume.OriginalName,
         },
       });
     } catch (error) {
@@ -786,21 +874,24 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
     }
 });
 
-//Get the resume
+//GET the resume
 app.get('/api/resumes/:userId', async (req, res) => {
+  const { userId } = req.params;
+
     try {
       const db = client.db('RecruitmentSystem');
       const resume = await db.collection('Resumes').findOne({
-        userId: new ObjectId(req.params.userId),
+        userId: userId // Query with the string userId
       });
+
   
       if (!resume) return res.status(404).json({ error: 'The student has not submitted his resume' });
   
       res.status(200).json({
         id: resume._id,
-        fileName: resume.fileName,
-        originalName: resume.originalName,
-        downloadUrl: `/uploads/resumes/${resume.fileName}`,
+        fileName: resume.FileName,
+        originalName: resume.OriginalName,
+        downloadUrl: `./resumes/${resume.FileName}`,
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch resume.' });
