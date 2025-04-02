@@ -13,7 +13,7 @@ const TXT_DIR = './text_files';
 fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 
 let client;
 
