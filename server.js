@@ -15,6 +15,15 @@ const jwtSecret = 'G25COP4331';  //should go in .env tho!
 //pdf
 const pdfParse = require("pdf-parse");
 
+//qr 
+const FormData = require('form-data');
+const Mailgun = require('mailgun.js');
+const mailgun = new Mailgun(FormData);
+const crypto = require("crypto");
+const { type } = require('os');
+const mg = mailgun.client({username: 'api', key: process.env.API_KEY || "put_api_key_here"});
+const verificationCodes = {};
+
 const app = express();
 const cors = require('cors');
 app.use(cors());
@@ -28,7 +37,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -635,8 +644,6 @@ app.post('/api/scans', async (req, res) => {
 });
 
 //POST total scores for jobs and job performance of student
-//needs to be tested
-/*
 app.post("/api/match-resume/", async (req, res) => {
   const{Recruiter_ID, Student_ID, Score} = req.body
 
@@ -645,40 +652,46 @@ app.post("/api/match-resume/", async (req, res) => {
       const jobsCollection = db.collection("Jobs");
       const studentsCollection = db.collection("Students");
       const resumesCollection = db.collection("Resumes");
-  
-      if (!resume) return res.status(404).json({ error: 'The student has not submitted his resume' });
-  
+
       //get student's resume
       const resume = await resumesCollection.findOne({ userId: Student_ID});
+      if (!resume) {
+        return res.status(404).json({ error: 'The student has not submitted his resume' });
+      }
+      
       const filePath = resume.Path;
       console.log(filePath);
 
       //get all jobs pertaining to recruiter id
       const jobs = await jobsCollection.find({ Recruiter_ID: Recruiter_ID }).toArray();
       const totalJobs = jobs.length;
-      console.log(totalJobs);
+      console.log("total jobs " + totalJobs);
 
       //variables & left
-      const left = (0.25) * ((Score/5) * 100);
-      console.log(left);
+      const left = (0.25) * ((Score/5) * 100); // 5 = full 25%
+      console.log("left " + left);
 
-      const total = 0;
+      let total = 0;
 
       for (const job of jobs) {
-          const jobSkills = job.skills || []; 
+          console.log("Job Document:", job);
+          const jobSkills = job.Skills || []; 
+          console.log("Job Skills Array:", jobSkills);
           const amountSkills = jobSkills.length;
-          const matchedSkills = 0;
+          console.log("amountSkills " + amountSkills);
 
-          const matchCount = await checkSkillsInPDF(fileName, jobSkills); //helper function to get matchedskills
+          const matchCount = await checkSkillsInPDF(filePath, jobSkills); //helper function to get matchedskills
+          console.log("matchCount " + matchCount);
 
           if(matchCount == null)
           {
             return res.status(404).json({ error: "Error: Unable to Read PDF" });
           }
 
-          const right = (0.75) * (matchedSkills/amountSkills);
-
+          const right = amountSkills > 0 ? (0.75) * ((matchCount/ amountSkills) * 100) : 0;        
+          console.log("right " + right);
           const totalJobScore = left + right;
+          console.log("totalJobScore "  + totalJobScore);
 
           //add new candidate in job
           const result = await jobsCollection.updateOne(
@@ -689,36 +702,41 @@ app.post("/api/match-resume/", async (req, res) => {
           total += totalJobScore;
       }
       total = total / totalJobs;
+      console.log(total);
 
-      const student= await studentsCollection.findOne({ Student_ID: Student_ID});
+      const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
       if (!student) {
+        console.log("check student");
         return res.status(404).json({ error: "Student not found." });
       }
     
       const jobPerformance = student.Job_Performance;
+      console.log(jobPerformance);
       
       if (!jobPerformance || jobPerformance.length < 2) {
           return res.status(404).json({ error: "Job performance data is incomplete for this student." });
       }
       
       const before_score = jobPerformance[0];
-
       const after_score = ( jobPerformance[0] + total ) / 2
+      console.log(after_score);
 
       let performanceLabel = '';
       if (after_score <=50) {
-          performanceLabel = 'not good';
+          performanceLabel = 'Not Good';
       } else if (after_score <=75) {
-          performanceLabel = 'average';
+          performanceLabel = 'Average';
       } else {
-          performanceLabel = 'amazing';
+          performanceLabel = 'Amazing';
       }
 
       // Update student's job performance
-      await studentsCollection.updateOne(
-          { Student_ID },
+      const result  = await studentsCollection.updateOne(
+          { _id : new ObjectId(Student_ID)},
           { $set: { Job_Performance: [after_score, performanceLabel] } }
       );
+     
+      console.log("Update Result:", result);
 
       res.status(200).json({
         Error: ' ',
@@ -731,21 +749,28 @@ app.post("/api/match-resume/", async (req, res) => {
       res.status(500).json({ error: "An error occurred while matching skills with resume." });
   }
 });
-*/
+
 
 //tested with match-resume
 async function checkSkillsInPDF(filePath, jobSkills) {
   try {
-    
-      if (!fs.existsSync(filePath)) throw new Error("File not found!");
+      console.log("skills: " + jobSkills);
+      console.log("inside check skills");
+      if (!fs.existsSync(filePath)) {
+        console.error("Error: File does not exist at path:", filePath);
+        return null;
+      }
 
-      //read pdf file
+      console.log("Before parsing PDF...");
       const pdfBuffer = fs.readFileSync(filePath);
       const pdfData = await pdfParse(pdfBuffer);
-      const pdfText = pdfData.text.toLowerCase(); //convert text to lowercase for case-insensitive matching
+      console.log("After parsing PDF...");
+      console.log("Extracted text:", pdfData.text.substring(0, 200)); // Show only the first 200 chars
+      const pdfText = pdfData.text.toLowerCase();
+  
 
       let matchCount = 0;
-      const foundSkills = new Set(); //prevent duplicate counting
+      let foundSkills = new Set(); //prevent duplicate counting
 
       //loop through each skill in jobSkills array
       jobSkills.forEach(skill => {
@@ -768,46 +793,47 @@ async function checkSkillsInPDF(filePath, jobSkills) {
 
 //POST generate a qr code based on id
 app.post('/api/generate-qr', async (req, res) => {
-    try {
-      const objectId = req.body.objectId;
+  try {
 
-    if (typeof objectId !== 'string' || !ObjectId.isValid(objectId)) {
-      return res.status(400).json({ 
-        error: 'Valid MongoDB ObjectID required (24-character hex string)' 
-      });
+    // user is a json object, so need to extract the string
+    const user = req.body;
+    const userId = user.userId;
+
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ error: 'Valid string userId required' });
     }
-  
-      const qrCodeData = objectId;
-      const qrFilename = `${QR_DIR}/qr_${objectId}.png`;
-      const txtFilename = `${TXT_DIR}/user_${objectId}.txt`;
-  
-      // Generate QR code
-      const qrStream = qr.image(qrCodeData, { type: 'png' });
-      const writeStream = fs.createWriteStream(qrFilename);
-      
-      qrStream.pipe(writeStream);
-  
-      // Wait for file write to complete
-      await new Promise((resolve, reject) => {
-        writeStream.on('finish', resolve);
-        writeStream.on('error', reject);
-      });
-  
-      // Create text file with object ID
-      await fs.promises.writeFile(txtFilename, qrCodeData);
-  
-      res.json({
-        success: true,
-        message: 'QR code generated successfully',
-        qrImage: `/qr_codes/qr_${objectId}.png`,
-        textFile: `/text_files/user_${objectId}.txt`
-      });
-  
-    } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
+
+    const qrCodeData = userId.toString();
+    const qrFilename = `${QR_DIR}/qr_${userId}.png`;
+    const txtFilename = `${TXT_DIR}/user_${userId}.txt`;
+
+    // Generate QR code
+    const qrStream = qr.image(qrCodeData, { type: 'png' });
+    const writeStream = fs.createWriteStream(qrFilename);
+    
+    qrStream.pipe(writeStream);
+
+    // Wait for file write to complete
+    await new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    // Create text file with user ID
+    await fs.promises.writeFile(txtFilename, qrCodeData);
+
+    res.json({
+      success: true,
+      message: 'QR code generated successfully',
+      qrImage: `/qr_codes/qr_${userId}.png`,
+      textFile: `/text_files/user_${userId}.txt`
+    });
+
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
   
   // Serve generated files
   app.use('/qr_codes', express.static(QR_DIR));
@@ -899,6 +925,108 @@ app.get('/api/resumes/:userId', async (req, res) => {
       res.status(500).json({ error: 'Failed to fetch resume.' });
     }
 });
+
+//POST forgot password
+app.post('/api/send-reset-code', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(401).json({ error: "Email is required." });
+    }
+
+    try {
+        const db = client.db('RecruitmentSystem');
+
+        const [studentResult, recruiterResult] = await Promise.all([
+            db.collection('Students').findOne({ Email: email }),
+            db.collection('Recruiters').findOne({ Email: email })
+        ]);
+
+        if (!studentResult && !recruiterResult) {
+            return res.status(404).json({ message: "Email not found." });
+        }
+
+        console.log("account was found");
+
+        const code = crypto.randomInt(100000, 999999).toString();
+
+        verificationCodes[email] = code;
+
+        const data = await mg.messages.create("postmaster_email_here", {
+            from: "Chimpr <postmaster_email_here>",
+            to: [email],
+            subject: "Password Reset",
+            text: `Your password reset code is: ${code}.`,
+            });
+
+        console.log("email was sent");
+
+        return res.status(200).json({ message: "Verification code sent." });
+
+    } catch (error) {
+        console.error("Error checking email:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+//POST email verification
+app.post('/api/verify-code', (req, res) => {
+    const { email, code } = req.body;
+
+    if (verificationCodes[email] && verificationCodes[email] === code) {
+        delete verificationCodes[email];
+        return res.json({ success: true, message: "Code verified" });
+    }
+
+    res.status(400).json({ message: "Invalid code" });
+});
+
+//POST updating password
+app.post('/api/change-password', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ message: "Email and/or password not found." });
+    }
+
+    try {
+        const db = client.db('RecruitmentSystem');
+        const studentsCollection = db.collection('Students');
+        const recruitersCollection = db.collection('Recruiters');
+
+        const [studentResult, recruiterResult] = await Promise.all([
+            studentsCollection.findOne({ Email: email }),
+            recruitersCollection.findOne({ Email: email })
+        ]);
+
+        if (!studentResult && !recruiterResult) {
+            return res.status(404).json({ message: "Email not found." });
+        }
+
+        let updateResult = null;
+        if (studentResult) {
+            updateResult = await studentsCollection.updateOne(
+                { Email: email },
+                { $set: { Password: password } }
+            );
+        } else if (recruiterResult) {
+            updateResult = await recruitersCollection.updateOne(
+                { Email: email},
+                { $set: { Password: password } }
+            );
+        }
+
+        if (!updateResult || updateResult.matchedCount === 0) {
+            return res.status(500).json({ message: "Error updatting password." });
+        }
+
+        res.json({ success: true, message: "Password changed." });
+    } catch (error) {
+        console.error("Error changing password: ", error);
+        res.status(500).json({ message: "Server error." })
+    }
+});
+
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, async () => {
