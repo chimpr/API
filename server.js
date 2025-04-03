@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const cors = require('cors');
 
 //json token & hash password
 const jwt = require('jsonwebtoken');
@@ -17,6 +18,8 @@ const pdfParse = require("pdf-parse");
 
 const app = express();
 app.use(bodyParser.json());
+app.use(cors());
+
 
 // Create directories for storing qr code
 const QR_DIR = './qr_codes';
@@ -26,7 +29,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -229,7 +232,7 @@ app.get('/api/recruiter/:id', async (req, res) => {
 //POST signup for student
 app.post('/api/student/signup', async (req, res) => {
     const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName, Email, Password } = req.body;
-
+    console.log("Llegue");
     if (!School || !Grad_Semester || !Grad_Year || !FirstName || !LastName || !Email || !Password ) {
         return res.status(403).json({ error: 'All fields (School, Grad_Semester, Grad_Year, FirstName, LastName, Email, and Password ) are required.' }); //need to psuh
     }
