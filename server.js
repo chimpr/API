@@ -188,7 +188,7 @@ app.post('/api/recruiter/signup', async (req, res) => {
 });
 
 //PUT update a recruiter
-app.put('/api/recruiter/update', async (req, res) => {
+app.put('/api/recruiter/update', verifyToken, async (req, res) => {
   const { id } = req.body;
   const { LinkedIn, Company, FirstName, LastName} = req.body;
 
@@ -213,7 +213,7 @@ app.put('/api/recruiter/update', async (req, res) => {
 });
 
 //GET recruiter details by ID
-app.get('/api/recruiter/:id', async (req, res) => {
+app.get('/api/recruiter/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -296,7 +296,7 @@ app.post('/api/student/signup', async (req, res) => {
 });
 
 //PUT update a student
-app.put('/api/student/update', async (req, res) => {
+app.put('/api/student/update', verifyToken, async (req, res) => {
   const { id } = req.body;
   const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName} = req.body;
 
@@ -321,7 +321,7 @@ app.put('/api/student/update', async (req, res) => {
 });
 
 //GET student details by ID
-app.get('/api/student/:id', async (req, res) => {
+app.get('/api/student/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -347,7 +347,7 @@ app.get('/api/student/:id', async (req, res) => {
 });
 
 //POST Create a new job
-app.post('/api/jobs/create', async (req, res) => {
+app.post('/api/jobs/create', verifyToken, async (req, res) => {
     const { Title, Skills, Type, Recruiter_ID } = req.body;
 
     if (!ObjectId.isValid(Recruiter_ID)) {
@@ -382,7 +382,7 @@ app.post('/api/jobs/create', async (req, res) => {
 });
 
 //PUT update a job
-app.put('/api/jobs/update', async (req, res) => {
+app.put('/api/jobs/update', verifyToken, async (req, res) => {
     const { id } = req.body;
     const { Title, Skills, Type } = req.body;
 
@@ -407,7 +407,7 @@ app.put('/api/jobs/update', async (req, res) => {
 });
 
 //DELETE delete a job
-app.delete('/api/jobs/delete/:id', async (req, res) => {
+app.delete('/api/jobs/delete/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
 
     // Validate if the id is a valid ObjectId before proceeding
@@ -440,7 +440,7 @@ app.delete('/api/jobs/delete/:id', async (req, res) => {
 });
 
 //GET job details by ID
-app.get('/api/jobs/:id', async (req, res) => {
+app.get('/api/jobs/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -462,7 +462,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 });
 
 //POST create a new event
-app.post('/api/events/create', async (req, res) => {
+app.post('/api/events/create', verifyToken, async (req, res) => {
   const { Name, Date, Recruiter_ID} = req.body;
 
   if (!ObjectId.isValid(Recruiter_ID)) {
@@ -501,7 +501,7 @@ app.post('/api/events/create', async (req, res) => {
 });
 
 //PUT update an event
-app.put('/api/events/update', async (req, res) => {
+app.put('/api/events/update', verifyToken, async (req, res) => {
   const { id } = req.body;
   const { Name, Date} = req.body;
 
@@ -537,7 +537,7 @@ app.put('/api/events/update', async (req, res) => {
 });
 
 //DELETE delete an event
-app.delete('/api/events/delete/:id', async (req, res) => {
+app.delete('/api/events/delete/:id',  verifyToken, async (req, res) => {
   const {id} = req.params;
 
   if (!ObjectId.isValid(id)) {
@@ -569,7 +569,7 @@ app.delete('/api/events/delete/:id', async (req, res) => {
 });
 
 //GET event details by ID
-app.get('/api/events/:id', async (req, res) => {
+app.get('/api/events/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -592,7 +592,7 @@ app.get('/api/events/:id', async (req, res) => {
 
 //GET all events that match the recruiter id
 //needs to be tested
-app.get('/api/event/list/:id', async (req, res) => {
+app.get('/api/event/list/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -644,7 +644,7 @@ app.post('/api/scans', async (req, res) => {
 });
 
 //POST total scores for jobs and job performance of student
-app.post("/api/match-resume/", async (req, res) => {
+app.post("/api/match-resume/", verifyToken, async (req, res) => {
   const{Recruiter_ID, Student_ID, Score} = req.body
 
   try {
