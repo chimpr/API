@@ -241,7 +241,6 @@ app.get('/api/recruiter/:id', async (req, res) => {
 //POST signup for student
 app.post('/api/student/signup', async (req, res) => {
     const { School, Grad_Semester, Grad_Year, Bio, FirstName, LastName, Email, Password } = req.body;
-    console.log("Llegue");
     if (!School || !Grad_Semester || !Grad_Year || !FirstName || !LastName || !Email || !Password ) {
         return res.status(403).json({ error: 'All fields (School, Grad_Semester, Grad_Year, FirstName, LastName, Email, and Password ) are required.' }); //need to psuh
     }
@@ -269,7 +268,7 @@ app.post('/api/student/signup', async (req, res) => {
             Grad_Semester,
             Grad_Year,
             Bio,
-            Job_Performance: [],
+            Job_Performance: [100, "Amazing"],
             FirstName,
             LastName,
             Email: lowerCaseEmail,
@@ -284,7 +283,7 @@ app.post('/api/student/signup', async (req, res) => {
             Grad_Semester,
             Grad_Year,
             Bio,
-            Job_Performance: [],
+            Job_Performance: [100, "Amazing"],
             FirstName,
             LastName,
             Email: lowerCaseEmail,
@@ -1025,6 +1024,33 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
+// POST signup verify
+app.post('/api/send-new-code', async (req, res) => {
+  const {email } = req.body;
+
+  if (!email) {
+    return res.status(401).json({ error: "Email is required." });
+  }
+  try {
+    const code = crypto.randomInt(100000, 999999).toString();
+
+    verificationCodes[email] = code;
+    console.log("about to send email");
+    const data = await mg.messages.create("put_email_here", {
+        from: "Chimpr <postmaster@put_email_here>",
+        to: [email],
+        subject: "Password Reset",
+        text: `Your password reset code is: ${code}.`,
+        });
+
+    console.log("email was sent");
+    return res.status(200).json({ message: "Verification code sent." });
+
+} catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ message: "Server error" });
+}
+});
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, async () => {
