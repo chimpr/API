@@ -38,7 +38,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -458,6 +458,29 @@ app.get('/api/jobs/:id', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error retrieving job:', error);
     res.status(500).json({ error: 'An error occurred while retrieving the job.' });
+  }
+});
+
+//GET all jobs that match the recruiter id
+//needs to be tested
+app.get('/api/jobs/list/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = client.db('RecruitmentSystem');
+    const eventsCollection = db.collection('Jobs');
+
+    //retrieve all events that match the recruiter id
+    const jobs = await eventsCollection.find({ Recruiter_ID: id }).toArray();
+
+    res.status(200).json({
+        Error: ' ',
+        Recruiter_ID: id,
+        jobs
+    });
+  } catch (error) {
+      console.error('Error getting jobs based on recruiter id :', error);
+      res.status(500).json({ error: 'An error occurred while getting events based on recruiter id.' });
   }
 });
 
