@@ -38,7 +38,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -90,18 +90,18 @@ app.post('/api/login', async (req, res, next) => {
       }
 
       //jwt token
-      /*const token = jwt.sign(
+      const token = jwt.sign(
         { id: user._id, email: user.Email, firstName: user.FirstName, lastName: user.LastName },
         jwtSecret,  // Use the hardcoded JWT secret
         { expiresIn: '1h' }      // Token expires in 1 hour
-      );*/
+      );
 
       res.status(200).json({
           ID: user._id,
           FirstName: user.FirstName,
           LastName: user.LastName,
           Role: role,
-          //token, //jwt token that should be stored within frontend
+          Token: token, //jwt token that should be stored within frontend
           Error: ''
       });
 
