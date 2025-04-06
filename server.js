@@ -28,6 +28,7 @@ const verificationCodes = {};
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
+app.use('/api/resumes', express.static(path.join(__dirname, 'resumes')));
 
 
 // Create directories for storing qr code
