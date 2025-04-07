@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -708,113 +708,7 @@ app.post('/api/scans', async (req, res) => {
   }
 });
 
-/*//POST total scores for jobs and job performance of student
-app.post("/api/match-resume/", verifyToken, async (req, res) => {
-  const{Recruiter_ID, Student_ID, Score} = req.body
-
-  try {
-      const db = client.db("RecruitmentSystem");
-      const jobsCollection = db.collection("Jobs");
-      const studentsCollection = db.collection("Students");
-      const resumesCollection = db.collection("Resumes");
-
-      //get student's resume
-      const resume = await resumesCollection.findOne({ userId: Student_ID});
-      if (!resume) {
-        return res.status(404).json({ error: 'The student has not submitted his resume' });
-      }
-      
-      const filePath = resume.Path;
-      console.log(filePath);
-
-      //get all jobs pertaining to recruiter id
-      const jobs = await jobsCollection.find({ Recruiter_ID: Recruiter_ID }).toArray();
-      const totalJobs = jobs.length;
-      console.log("total jobs " + totalJobs);
-
-      //variables & left
-      const left = (0.25) * ((Score/5) * 100); // 5 = full 25%
-      console.log("left " + left);
-
-      let total = 0;
-
-      for (const job of jobs) {
-          console.log("Job Document:", job);
-          const jobSkills = job.Skills || []; 
-          console.log("Job Skills Array:", jobSkills);
-          const amountSkills = jobSkills.length;
-          console.log("amountSkills " + amountSkills);
-
-          const matchCount = await checkSkillsInPDF(filePath, jobSkills); //helper function to get matchedskills
-          console.log("matchCount " + matchCount);
-
-          if(matchCount == null)
-          {
-            return res.status(404).json({ error: "Error: Unable to Read PDF" });
-          }
-
-          const right = amountSkills > 0 ? (0.75) * ((matchCount/ amountSkills) * 100) : 0;        
-          console.log("right " + right);
-          const totalJobScore = left + right;
-          console.log("totalJobScore "  + totalJobScore);
-
-          //add new candidate in job
-          const result = await jobsCollection.updateOne(
-            { _id: new ObjectId(job._id) },
-            { $push: { Top_Candidates: { Student_ID: Student_ID, Score:totalJobScore } } } 
-          );
-        
-          total += totalJobScore;
-      }
-      total = total / totalJobs;
-      console.log(total);
-
-      const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
-      if (!student) {
-        console.log("check student");
-        return res.status(404).json({ error: "Student not found." });
-      }
-    
-      const jobPerformance = student.Job_Performance;
-      if (!jobPerformance || jobPerformance.length < 2) {
-          return res.status(404).json({ error: "Job performance data is incomplete for this student." });
-      }
-      
-      const before_score = jobPerformance[0];
-      const after_score = ( jobPerformance[0] + total ) / 2
-      console.log(after_score);
-
-      let performanceLabel = '';
-      if (after_score <=50) {
-          performanceLabel = 'Not Good';
-      } else if (after_score <=75) {
-          performanceLabel = 'Average';
-      } else {
-          performanceLabel = 'Amazing';
-      }
-
-      // Update student's job performance
-      const result  = await studentsCollection.updateOne(
-          { _id : new ObjectId(Student_ID)},
-          { $set: { Job_Performance: [after_score, performanceLabel] } }
-      );
-     
-      console.log("Update Result:", result);
-
-      res.status(200).json({
-        Error: ' ',
-        Before_Job_Performance: before_score,
-        After_Job_Performance: after_score
-      });
-
-  } catch (error) {
-      console.error("Error processing score calculation of job performance:", error);
-      res.status(500).json({ error: "An error occurred while matching skills with resume." });
-  }
-});*/
-
-
-//tested with post scan
+//logic for parsing through resume and comparing student score 
 async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
   const jobsCollection = db.collection("Jobs");
   const studentsCollection = db.collection("Students");
