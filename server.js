@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -549,7 +549,8 @@ app.post('/api/events/create', verifyToken, async (req, res) => {
     const newEvent = {
         Name,
         Date, 
-        Recruiter_ID
+        Recruiter_ID, 
+        Students : {}
     };
 
     const result = await eventsCollection.insertOne(newEvent);
@@ -559,6 +560,7 @@ app.post('/api/events/create', verifyToken, async (req, res) => {
         Name,
         Date: newEvent.Date,
         Recruiter_ID,
+        Students : {},
         Error: ''
     });
   } catch (error) {
@@ -649,7 +651,11 @@ app.get('/api/events/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    res.status(200).json(event);
+    res.status(200).json({
+      event,
+      Error: ' '
+    }
+    );
 
   } catch (error) {
     console.error('Error retrieving event:', error);
@@ -679,23 +685,47 @@ app.get('/api/event/list/:id', verifyToken, async (req, res) => {
   }
 });
 
-//POST create scans and calculate performance
+//POST create scans and calculate performance; adds students to jobs and events
 app.post('/api/scans', async (req, res) => {
-  const { Student_ID, Recruiter_ID, Score } = req.body;
+  const { Student_ID, Recruiter_ID, Event_ID, Score } = req.body;
 
   try {
     const db = client.db('RecruitmentSystem');
     const scansCollection = db.collection('Scans');
+    const eventsCollection = db.collection('Events');
+    const studentsCollection = db.collection('Students');
 
     const newScan = { Student_ID, Recruiter_ID, Score };
     const result = await scansCollection.insertOne(newScan);
 
-    const performance = await matchResumeScore({ Recruiter_ID, Student_ID, Score, db });
+    //get student info
+    const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const performance = await matchResumeScore({ Recruiter_ID, Student_ID, student, Score, db });
+
+    //add student to event
+    await eventsCollection.updateOne(
+      { _id: new ObjectId(Event_ID) },
+      {
+        $push: {
+          Students: {
+            Student_ID: Student_ID,
+            First_Name: student.FirstName,
+            Last_Name: student.LastName,
+            Score: performance.after_score
+          }
+        }
+      }
+    );
 
     res.status(201).json({
       _id: result.insertedId,
       Student_ID,
       Recruiter_ID,
+      Event_ID,
       Score,
       Before_Job_Performance: performance.before_score,
       After_Job_Performance: performance.after_score,
@@ -709,7 +739,7 @@ app.post('/api/scans', async (req, res) => {
 });
 
 //logic for parsing through resume and comparing student score 
-async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
+async function matchResumeScore({ Recruiter_ID, Student_ID, student, Score, db }) {
   const jobsCollection = db.collection("Jobs");
   const studentsCollection = db.collection("Students");
   const resumesCollection = db.collection("Resumes");
@@ -749,7 +779,7 @@ async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
 
     await jobsCollection.updateOne(
       { _id: new ObjectId(job._id) },
-      { $push: { Top_Candidates: { Student_ID: Student_ID, Score:totalJobScore } } } 
+      { $push: { Top_Candidates: { First_Name: student.FirstName, Last_Name: student.LastName, Student_ID: Student_ID, Score:totalJobScore } } } 
     );
 
     total += totalJobScore;
@@ -757,10 +787,10 @@ async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
 
   total = total / totalJobs;
   console.log(total);
-  const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
-  if (!student) throw new Error("Student not found");
+  const student2 = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
+  if (!student2) throw new Error("Student not found");
 
-  const jobPerformance = student.Job_Performance;
+  const jobPerformance = student2.Job_Performance;
   if (!jobPerformance || jobPerformance.length < 2)
     throw new Error("Job performance data is incomplete");
 
@@ -935,6 +965,43 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
       console.error('Error uploading resume:', error);
       res.status(500).json({ error: 'Failed to upload resume.' });
     }
+});
+
+//PUT update resume
+app.put('/api/update-resume', verifyToken, upload.single('resume'), async (req, res) => {
+  try {
+      if (!req.file) {
+          return res.status(400).json({ error: 'No file uploaded.' });
+      }
+      const userId = req.user.id;
+      const db = client.db('RecruitmentSystem');
+      const resumesCollection = db.collection('Resumes');
+      const result = await resumesCollection.findOneAndUpdate(
+          { userId: userId },
+          {
+              $set: {
+                  FileName: req.file.filename,
+                  OriginalName: req.file.originalname,
+                  Path: req.file.path,
+                  updatedAt: new Date()
+              }
+          },
+          { returnDocument: 'after' }
+      );
+      if (!result.value) {
+          return res.status(404).json({ error: 'User not found' });
+      }
+      res.status(200).json({
+          message: 'Resume updated successfully!',
+          resume: {
+              fileName: result.value.FileName,
+              downloadUrl: `/api/resumes/${result.value.FileName}`
+          }
+      });
+  } catch (error) {
+      console.error('Error updating resume:', error);
+      res.status(500).json({ error: 'Failed to update resume' });
+  }
 });
 
 //GET the resume
