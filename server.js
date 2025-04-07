@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -517,6 +517,7 @@ app.get('/api/jobs/topcandidates/:id/:num', verifyToken, async (req, res) => {
     res.status(200).json({
       jobId: id,
       topRequested: topN,
+      Error: '',
       topCandidates
     });
 
