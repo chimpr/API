@@ -487,7 +487,6 @@ app.get('/api/jobs/list/:id', verifyToken, async (req, res) => {
 });
 
 //GET top N candidates for a specific job
-//needs to be tested
 app.get('/api/jobs/topcandidates/:id/:num', verifyToken, async (req, res) => {
   const { id, num } = req.params;
   const topN = parseInt(num, 10);
@@ -657,7 +656,6 @@ app.get('/api/events/:id', verifyToken, async (req, res) => {
 });
 
 //GET all events that match the recruiter id
-//needs to be tested
 app.get('/api/event/list/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
 
@@ -680,7 +678,6 @@ app.get('/api/event/list/:id', verifyToken, async (req, res) => {
 });
 
 //POST create scans and calculate performance
-//needs to be tested
 app.post('/api/scans', async (req, res) => {
   const { Student_ID, Recruiter_ID, Score } = req.body;
 
@@ -691,15 +688,10 @@ app.post('/api/scans', async (req, res) => {
     const newScan = { Student_ID, Recruiter_ID, Score };
     const result = await scansCollection.insertOne(newScan);
 
-    const performance = await matchResumeScore({ Recruiter_ID, Student_ID, Score, db });
-
     res.status(201).json({
-      _id: result.insertedId,
       Student_ID,
       Recruiter_ID,
       Score,
-      Before_Job_Performance: performance.before_score,
-      After_Job_Performance: performance.after_score,
       Error: ''
     });
 
@@ -709,7 +701,7 @@ app.post('/api/scans', async (req, res) => {
   }
 });
 
-/*//POST total scores for jobs and job performance of student
+//POST total scores for jobs and job performance of student
 app.post("/api/match-resume/", verifyToken, async (req, res) => {
   const{Recruiter_ID, Student_ID, Score} = req.body
 
@@ -812,64 +804,7 @@ app.post("/api/match-resume/", verifyToken, async (req, res) => {
       console.error("Error processing score calculation of job performance:", error);
       res.status(500).json({ error: "An error occurred while matching skills with resume." });
   }
-});*/
-
-//tested with post scan
-async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
-  const jobsCollection = db.collection("Jobs");
-  const studentsCollection = db.collection("Students");
-  const resumesCollection = db.collection("Resumes");
-
-  const resume = await resumesCollection.findOne({ userId: Student_ID });
-  if (!resume) throw new Error("The student has not submitted a resume");
-
-  const filePath = resume.Path;
-  const jobs = await jobsCollection.find({ Recruiter_ID }).toArray();
-  const totalJobs = jobs.length;
-  const left = 0.25 * ((Score / 5) * 100);
-  let total = 0;
-
-  for (const job of jobs) {
-    const jobSkills = job.Skills || [];
-    const amountSkills = jobSkills.length;
-    const matchCount = await checkSkillsInPDF(filePath, jobSkills);
-
-    if (matchCount == null) throw new Error("Unable to read PDF");
-
-    const right = amountSkills > 0 ? 0.75 * ((matchCount / amountSkills) * 100) : 0;
-    const totalJobScore = left + right;
-
-    await jobsCollection.updateOne(
-      { _id: new ObjectId(job._id) },
-      { $push: { Top_Candidates: { Student_ID, Score: totalJobScore } } }
-    );
-
-    total += totalJobScore;
-  }
-
-  total = total / totalJobs;
-  const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
-  if (!student) throw new Error("Student not found");
-
-  const jobPerformance = student.Job_Performance;
-  if (!jobPerformance || jobPerformance.length < 2)
-    throw new Error("Job performance data is incomplete");
-
-  const before_score = jobPerformance[0];
-  const after_score = (before_score + total) / 2;
-
-  let performanceLabel = "";
-  if (after_score <= 50) performanceLabel = "Not Good";
-  else if (after_score <= 75) performanceLabel = "Average";
-  else performanceLabel = "Amazing";
-
-  await studentsCollection.updateOne(
-    { _id: new ObjectId(Student_ID) },
-    { $set: { Job_Performance: [after_score, performanceLabel] } }
-  );
-
-  return { before_score, after_score };
-}
+});
 
 //tested with post scan
 async function checkSkillsInPDF(filePath, jobSkills) {
