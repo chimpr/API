@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -349,7 +349,7 @@ app.get('/api/student/:id', verifyToken, async (req, res) => {
 
 //POST Create a new job
 app.post('/api/jobs/create', verifyToken, async (req, res) => {
-    const { Title, Skills, Type, Recruiter_ID } = req.body;
+    const { Title, Description, Skills, Type, Recruiter_ID } = req.body;
 
     if (!ObjectId.isValid(Recruiter_ID)) {
       return res.status(404).json({ error: 'Invalid Recruiter_ID format.' });
@@ -361,6 +361,7 @@ app.post('/api/jobs/create', verifyToken, async (req, res) => {
 
         const newJob = {
             Title,
+            Description,
             Skills,
             Type, 
             Recruiter_ID, 
@@ -372,6 +373,7 @@ app.post('/api/jobs/create', verifyToken, async (req, res) => {
         res.status(201).json({
             _id: result.insertedId,
             Title,
+            Description,
             Skills,
             Type,
             Recruiter_ID,
@@ -387,7 +389,7 @@ app.post('/api/jobs/create', verifyToken, async (req, res) => {
 //PUT update a job
 app.put('/api/jobs/update', verifyToken, async (req, res) => {
     const { id } = req.body;
-    const { Title, Skills, Type } = req.body;
+    const { Title, Description, Skills, Type } = req.body;
 
     try {
         const db = client.db('RecruitmentSystem');
@@ -395,7 +397,7 @@ app.put('/api/jobs/update', verifyToken, async (req, res) => {
 
         const result = await jobsCollection.updateOne(
             { _id: new ObjectId(id) },
-            { $set: { Title, Skills, Type } }
+            { $set: { Title, Description, Skills, Type } }
         );
 
         if (result.matchedCount === 0) {
