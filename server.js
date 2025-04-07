@@ -400,7 +400,7 @@ app.put('/api/jobs/update', verifyToken, async (req, res) => {
             return res.status(404).json({ error: 'Job not found.' });
         }
 
-        res.status(200).json({ message: 'Job updated successfully.' });
+        res.status(200).json({ message: 'Job updated successfully.', Error: ''});
     } catch (error) {
         console.error('Error updating job:', error);
         res.status(500).json({ error: 'An error occurred while updating the job.' });
@@ -433,7 +433,7 @@ app.delete('/api/jobs/delete/:id', verifyToken, async (req, res) => {
         }
         
         console.log('Job to be deleted:', job);
-        res.status(200).json({ message: 'Job deleted successfully.' });
+        res.status(200).json({ message: 'Job deleted successfully.', error: '' });
     } catch (error) {
         console.error('Error deleting job:', error);
         res.status(500).json({ error: 'An error occurred while deleting the job.' });
