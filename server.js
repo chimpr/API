@@ -507,7 +507,7 @@ app.get('/api/jobs/topcandidates/:id/:num', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    if (!job.Top_Candidates || job.Top_Candidates.length === 0) {
+    if (!job.Top_Candidates || !Array.isArray(job.Top_Candidates) || job.Top_Candidates.length === 0) {
       return res.status(200).json({ message: 'No candidates found for this job', Top_Candidates: [] });
     }
 
