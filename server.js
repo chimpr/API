@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = ''; 
+const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
 let client;
 
 async function connectToMongoDB() {
@@ -690,10 +690,15 @@ app.post('/api/scans', async (req, res) => {
     const newScan = { Student_ID, Recruiter_ID, Score };
     const result = await scansCollection.insertOne(newScan);
 
+    const performance = await matchResumeScore({ Recruiter_ID, Student_ID, Score, db });
+
     res.status(201).json({
+      _id: result.insertedId,
       Student_ID,
       Recruiter_ID,
       Score,
+      Before_Job_Performance: performance.before_score,
+      After_Job_Performance: performance.after_score,
       Error: ''
     });
 
@@ -703,7 +708,7 @@ app.post('/api/scans', async (req, res) => {
   }
 });
 
-//POST total scores for jobs and job performance of student
+/*//POST total scores for jobs and job performance of student
 app.post("/api/match-resume/", verifyToken, async (req, res) => {
   const{Recruiter_ID, Student_ID, Score} = req.body
 
@@ -806,7 +811,86 @@ app.post("/api/match-resume/", verifyToken, async (req, res) => {
       console.error("Error processing score calculation of job performance:", error);
       res.status(500).json({ error: "An error occurred while matching skills with resume." });
   }
-});
+});*/
+
+
+//tested with post scan
+async function matchResumeScore({ Recruiter_ID, Student_ID, Score, db }) {
+  const jobsCollection = db.collection("Jobs");
+  const studentsCollection = db.collection("Students");
+  const resumesCollection = db.collection("Resumes");
+
+  //get student's resume
+  const resume = await resumesCollection.findOne({ userId: Student_ID });
+  if (!resume) throw new Error("The student has not submitted a resume");
+
+  const filePath = resume.Path;
+  console.log(filePath);
+
+  //get all jobs pertaining to recruiter id
+  const jobs = await jobsCollection.find({ Recruiter_ID }).toArray();
+  const totalJobs = jobs.length;
+
+  //variables & left
+  console.log(Score);
+  const left = 0.25 * ((Score / 5)*100);
+  let total = 0;
+  console.log("left " + left);
+
+  for (const job of jobs) {
+    console.log("Job Document:", job);
+    const jobSkills = job.Skills || [];
+    const amountSkills = jobSkills.length;
+    console.log("amountSkills " + amountSkills);
+
+    const matchCount = await checkSkillsInPDF(filePath, jobSkills);
+    console.log("matchCount " + matchCount);
+
+    if (matchCount == null) throw new Error("Unable to read PDF");
+
+    const right = amountSkills > 0 ? 0.75 * ((matchCount / amountSkills) * 100) : 0;
+    console.log("right " + right);
+    const totalJobScore = left + right;
+    console.log("totalJobScore "  + totalJobScore);
+
+    await jobsCollection.updateOne(
+      { _id: new ObjectId(job._id) },
+      { $push: { Top_Candidates: { Student_ID: Student_ID, Score:totalJobScore } } } 
+    );
+
+    total += totalJobScore;
+  }
+
+  total = total / totalJobs;
+  console.log(total);
+  const student = await studentsCollection.findOne({ _id: new ObjectId(Student_ID) });
+  if (!student) throw new Error("Student not found");
+
+  const jobPerformance = student.Job_Performance;
+  if (!jobPerformance || jobPerformance.length < 2)
+    throw new Error("Job performance data is incomplete");
+
+  const before_score = jobPerformance[0];
+  const after_score = (before_score + total) / 2;
+  console.log(after_score);
+
+  let performanceLabel = '';
+  if (after_score <=50) {
+      performanceLabel = 'Not Good';
+  } else if (after_score <=75) {
+      performanceLabel = 'Average';
+  } else {
+      performanceLabel = 'Amazing';
+  }
+
+  // Update student's job performance
+  await studentsCollection.updateOne(
+  { _id : new ObjectId(Student_ID)},
+  { $set: { Job_Performance: [after_score, performanceLabel] } }
+  );      
+
+  return { before_score, after_score };
+}
 
 //tested with post scan
 async function checkSkillsInPDF(filePath, jobSkills) {
