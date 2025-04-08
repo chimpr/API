@@ -39,7 +39,7 @@ fs.mkdirSync(QR_DIR, { recursive: true });
 fs.mkdirSync(TXT_DIR, { recursive: true });
 fs.mkdirSync(RESUME_DIR, { recursive: true });
 
-const mongoURI = 'mongodb+srv://root:COP4331@cluster0.a7mcq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; 
+const mongoURI = ''; 
 let client;
 
 async function connectToMongoDB() {
@@ -534,8 +534,8 @@ app.post('/api/events/create', verifyToken, async (req, res) => {
 
   if (!ObjectId.isValid(Recruiter_ID)) {
     return res.status(404).json({ error: 'Invalid Recruiter_ID format.' });
-  
   }
+
   try { 
     //validate the date format
     const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$/;
@@ -630,7 +630,7 @@ app.delete('/api/events/delete/:id',  verifyToken, async (req, res) => {
     }
     
     console.log('Event to be deleted:', event);
-    res.status(200).json({ message: 'Event deleted successfully.' });
+    res.status(200).json({ message: 'Event deleted successfully.', Error: ''});
   } catch (error) {
       console.error('Error Creating Event:', error);
       res.status(500).json({ error: 'An error occurred while creating an event.' });
