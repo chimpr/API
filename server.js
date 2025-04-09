@@ -365,7 +365,7 @@ app.post('/api/jobs/create', verifyToken, async (req, res) => {
             Skills,
             Type, 
             Recruiter_ID, 
-            Top_Candidates: {}
+            Top_Candidates: []
         };
 
         const result = await jobsCollection.insertOne(newJob);
@@ -377,7 +377,7 @@ app.post('/api/jobs/create', verifyToken, async (req, res) => {
             Skills,
             Type,
             Recruiter_ID,
-            Top_Candidates: {},
+            Top_Candidates: [],
             Error: ''
         });
     } catch (error) {
@@ -686,7 +686,7 @@ app.get('/api/event/list/:id', verifyToken, async (req, res) => {
 });
 
 //POST create scans and calculate performance; adds students to jobs and events
-app.post('/api/scans', async (req, res) => {
+app.post('/api/scans', verifyToken, async (req, res) => {
   const { Student_ID, Recruiter_ID, Event_ID, Score } = req.body;
 
   try {
@@ -968,7 +968,7 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
 });
 
 //PUT update resume
-app.put('/api/update-resume', verifyToken, upload.single('resume'), async (req, res) => {
+app.put('/api/update-resume', upload.single('resume'), async (req, res) => {
   try {
       if (!req.file) {
           return res.status(400).json({ error: 'No file uploaded.' });
