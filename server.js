@@ -504,14 +504,14 @@ app.get('/api/jobs/topcandidates/:id/:num', verifyToken, async (req, res) => {
     const job = await jobsCollection.findOne({ _id: new ObjectId(id) });
 
     if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
+      return res.status(404).json({ Error: 'Job not found' });
     }
 
     if (!job.Top_Candidates || !Array.isArray(job.Top_Candidates) || job.Top_Candidates.length === 0) {
-      return res.status(200).json({ message: 'No candidates found for this job', Top_Candidates: [] });
+      return res.status(200).json({ Error: '', message: 'No candidates found for this job', Top_Candidates: [] });
     }
 
-    const topCandidates = job.Top_Candidates
+    const Top_Candidates = job.Top_Candidates
     .sort((a, b) => b.Score - a.Score)
     .slice(0, Math.min(topN, job.Top_Candidates.length));
 
@@ -519,7 +519,7 @@ app.get('/api/jobs/topcandidates/:id/:num', verifyToken, async (req, res) => {
       jobId: id,
       topRequested: topN,
       Error: '',
-      topCandidates
+      Top_Candidates
     });
 
   } catch (error) {
