@@ -828,6 +828,9 @@ async function checkSkillsInPDF(filePath, jobSkills) {
 
       console.log("Before parsing PDF...");
       const pdfBuffer = fs.readFileSync(filePath);
+
+      console.log("Buffer starts with:", pdfBuffer.slice(0, 10).toString());
+
       const pdfData = await pdfParse(pdfBuffer);
       console.log("After parsing PDF...");
       console.log("Extracted text:", pdfData.text.substring(0, 200)); // Show only the first 200 chars
