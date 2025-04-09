@@ -550,7 +550,7 @@ app.post('/api/events/create', verifyToken, async (req, res) => {
         Name,
         Date, 
         Recruiter_ID, 
-        Students : {}
+        Students : []
     };
 
     const result = await eventsCollection.insertOne(newEvent);
